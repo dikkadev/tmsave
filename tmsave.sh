@@ -4,7 +4,7 @@
 # Functions:
 #   tmsave    - Save current layout for $PWD
 #   tmre      - Restore saved layout for $PWD
-#   tmsavemv - Move layout from one path key to another
+#   tmsavemv  - Move layout from one path key to another
 
 TMSAVE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tmsave/layouts"
 
@@ -36,15 +36,22 @@ tmsave() {
   local layout
   layout=$(tmux display-message -p "#{window_layout}")
 
-  # Get pane info
+  # Get pane info (only path and active status)
   local panes_json="["
   local first=true
+  local has_outside=false
   while IFS='|' read -r index path active; do
     if [[ "$first" == "true" ]]; then
       first=false
     else
       panes_json+=","
     fi
+
+    # Check if pane is outside base dir
+    if [[ "$path" != "$dir" && "$path" != "$dir/"* ]]; then
+      has_outside=true
+    fi
+
     # Escape path for JSON
     local escaped_path
     escaped_path=$(echo "$path" | sed 's/\\/\\\\/g; s/"/\\"/g')
@@ -67,6 +74,9 @@ tmsave() {
 EOF
 
   echo "Saved layout for: $dir"
+  if [[ "$has_outside" == "true" ]]; then
+    echo "Warning: Some panes were outside this directory (will stay at base on restore)"
+  fi
 }
 
 # Restore saved layout for $PWD
@@ -88,16 +98,26 @@ tmre() {
     return 1
   fi
 
-  # Read layout
-  local layout
+  # Read layout and pane info
+  local layout saved_panes
   layout=$(jq -r '.layout' "$layout_file")
-
-  # Get current pane count vs saved pane count
-  local current_panes saved_panes
-  current_panes=$(tmux list-panes | wc -l)
   saved_panes=$(jq '.panes | length' "$layout_file")
 
-  # Create additional panes if needed
+  # Read pane data into arrays
+  local -a pane_paths
+  local active_pane=0
+  while IFS=$'\t' read -r index path active; do
+    pane_paths[$index]="$path"
+    if [[ "$active" == "true" ]]; then
+      active_pane=$index
+    fi
+  done < <(jq -r '.panes[] | [.index, .path, .active] | @tsv' "$layout_file")
+
+  # Get current pane count
+  local current_panes
+  current_panes=$(tmux list-panes | wc -l)
+
+  # Create additional panes (they inherit current directory)
   while (( current_panes < saved_panes )); do
     tmux split-window
     ((current_panes++))
@@ -106,14 +126,15 @@ tmre() {
   # Apply layout
   tmux select-layout "$layout"
 
-  # Set working directory for each pane
-  local active_pane=0
-  while IFS=$'\t' read -r index path active; do
-    tmux send-keys -t ".$index" "cd '$path'" Enter
-    if [[ "$active" == "true" ]]; then
-      active_pane=$index
+  # cd into subdirectories where needed
+  for i in "${!pane_paths[@]}"; do
+    local pane_path="${pane_paths[$i]}"
+    # Only cd if it's a subdirectory of current dir
+    if [[ "$pane_path" == "$dir/"* ]]; then
+      local relative="${pane_path#$dir/}"
+      tmux send-keys -t ".$i" "cd '$relative'" Enter
     fi
-  done < <(jq -r '.panes[] | [.index, .path, .active] | @tsv' "$layout_file")
+  done
 
   # Restore active pane
   tmux select-pane -t ".$active_pane"
