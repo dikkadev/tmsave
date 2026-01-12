@@ -4,7 +4,7 @@
 # Functions:
 #   tmsave    - Save current layout for $PWD
 #   tmre      - Restore saved layout for $PWD
-#   tmsave_mv - Move layout from one path key to another
+#   tmsavemv - Move layout from one path key to another
 
 TMSAVE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tmsave/layouts"
 
@@ -32,9 +32,9 @@ tmsave() {
   # Ensure storage directory exists
   mkdir -p "$TMSAVE_DIR"
 
-  # Get layout string
+  # Get layout string for current window only
   local layout
-  layout=$(tmux list-windows -F "#{window_layout}")
+  layout=$(tmux display-message -p "#{window_layout}")
 
   # Get pane info
   local panes_json="["
@@ -122,9 +122,9 @@ tmre() {
 }
 
 # Move layout from one path to another
-tmsave_mv() {
+tmsavemv() {
   if [[ $# -ne 2 ]]; then
-    echo "Usage: tmsave_mv <old_path> <new_path>" >&2
+    echo "Usage: tmsavemv <old_path> <new_path>" >&2
     return 1
   fi
 
