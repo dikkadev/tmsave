@@ -3,7 +3,7 @@
 #
 # Functions:
 #   tmsave    - Save current layout for $PWD
-#   tmre      - Restore saved layout for $PWD
+#   tmre      - Restore saved layout for $PWD (use -n/--no-source to skip ~/.bashrc)
 #   tmsavemv  - Move layout from one path key to another
 
 TMSAVE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tmsave/layouts"
@@ -83,7 +83,34 @@ EOF
 tmre() {
   _tmsave_check_tmux || return 1
 
-  local dir="${1:-$PWD}"
+  local dir=""
+  local source_env=true
+
+  while (( $# > 0 )); do
+    case "$1" in
+      -n|--no-source)
+        source_env=false
+        shift
+        ;;
+      -*)
+        echo "Unknown option: $1" >&2
+        return 1
+        ;;
+      *)
+        if [[ -z "$dir" ]]; then
+          dir="$1"
+        else
+          echo "Usage: tmre [-n|--no-source] [path]" >&2
+          return 1
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "$dir" ]]; then
+    dir="$PWD"
+  fi
   local encoded=$(_tmsave_encode_path "$dir")
   local layout_file="$TMSAVE_DIR/$encoded.json"
 
@@ -126,13 +153,24 @@ tmre() {
   # Apply layout
   tmux select-layout "$layout"
 
-  # cd into subdirectories where needed
+  # source bashrc and cd into subdirectories where needed
   for i in "${!pane_paths[@]}"; do
     local pane_path="${pane_paths[$i]}"
+    local cmd=""
+    if [[ "$source_env" == "true" ]]; then
+      cmd="[[ -f ~/.bashrc ]] && source ~/.bashrc >/dev/null 2>&1"
+    fi
     # Only cd if it's a subdirectory of current dir
     if [[ "$pane_path" == "$dir/"* ]]; then
       local relative="${pane_path#$dir/}"
-      tmux send-keys -t ".$i" "cd '$relative'" Enter
+      if [[ -n "$cmd" ]]; then
+        cmd="$cmd; cd '$relative'"
+      else
+        cmd="cd '$relative'"
+      fi
+    fi
+    if [[ -n "$cmd" ]]; then
+      tmux send-keys -t ".$i" "$cmd" Enter
     fi
   done
 
