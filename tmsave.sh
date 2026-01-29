@@ -75,6 +75,24 @@ EOF
 EOF
 
     echo "Saved default layout for: $dir"
+
+    # Apply the layout immediately
+    local current_panes
+    current_panes=$(tmux list-panes | wc -l)
+
+    # Create additional panes to reach 3
+    while (( current_panes < 3 )); do
+      tmux split-window -c "$dir"
+      ((current_panes++))
+    done
+
+    # Apply the layout
+    tmux select-layout "2c26,361x83,0,0{229x83,0,0,4,131x83,230,0[131x41,230,0,5,131x41,230,42,6]}"
+
+    # Select pane 0 as active
+    tmux select-pane -t .0
+
+    echo "Applied default layout."
     return 0
   fi
 
