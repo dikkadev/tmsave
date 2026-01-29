@@ -156,9 +156,12 @@ EOF
 tmre() {
   if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat <<'EOF'
-Usage: tmre [source_dir]
+Usage: tmre [-d] [source_dir]
 
 Restore a saved tmux layout to the current directory.
+
+Options:
+  -d          Delete the saved layout instead of restoring
 
 Arguments:
   source_dir  Load layout from this directory instead of $PWD
@@ -167,9 +170,32 @@ Arguments:
 Examples:
   tmre                  # Restore layout saved for current directory
   tmre ~/project/main   # Apply ~/project/main's layout to current directory
+  tmre -d               # Delete layout for current directory
+  tmre -d ~/project     # Delete layout for ~/project
 
 Subdirectory panes are mapped relatively to your current directory.
 EOF
+    return 0
+  fi
+
+  # Handle -d flag for delete
+  if [[ "$1" == "-d" ]]; then
+    local dir="${2:-$PWD}"
+    # Resolve to absolute path if it exists
+    if [[ -d "$dir" ]]; then
+      dir="$(cd "$dir" && pwd)"
+    fi
+
+    local encoded=$(_tmsave_encode_path "$dir")
+    local layout_file="$TMSAVE_DIR/$encoded.json"
+
+    if [[ ! -f "$layout_file" ]]; then
+      echo "No saved layout for: $dir" >&2
+      return 1
+    fi
+
+    rm "$layout_file"
+    echo "Deleted layout for: $dir"
     return 0
   fi
 
