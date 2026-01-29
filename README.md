@@ -29,12 +29,42 @@ cd ~/myproject
 tmre
 ```
 
+### Apply layout from another directory (git worktrees)
+
+Pass a directory to load its layout and apply it to your current directory. Subdirectory panes are mapped relatively.
+
+```bash
+# You have a layout saved for your main worktree
+cd ~/myproject-feature-branch
+tmre ~/myproject
+
+# Pane that was at ~/myproject/ui → opens at ~/myproject-feature-branch/ui
+```
+
+### List saved layouts
+
+```bash
+tmlist          # Human-readable table
+tmlist --json   # JSON array for scripting
+```
+
 ### Move layout to new path
 
 When you relocate a project:
 
 ```bash
 tmsavemv ~/old/path ~/new/path
+```
+
+### Help
+
+All commands support `-h` / `--help`:
+
+```bash
+tmsave --help
+tmre --help
+tmlist --help
+tmsavemv --help
 ```
 
 ## How it works
